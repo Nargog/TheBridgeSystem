@@ -25,7 +25,7 @@ struct TheBridgeSystemApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            tstContentView()  // Jag har bytt till att starta en annan vieew !!!
         }
         .modelContainer(sharedModelContainer)
     }
