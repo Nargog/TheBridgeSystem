@@ -16,6 +16,7 @@ class BidNode {
     var id: UUID
     var bidName: String       // T.ex. "1 Klöver"
     var meaning: String       // T.ex. "12+ HP, 3+ klöver..."
+    var bidder: String        // "S", "W", "N", "E" indicating who made the bid
     var creationDate: Date
     
     // Relationer: Ett bud kan ha många svarsbud (Children)
@@ -27,10 +28,11 @@ class BidNode {
     @Relationship(inverse: \BidNode.responses)
     var parent: BidNode?
     
-    init(bidName: String, meaning: String, parent: BidNode? = nil) {
+    init(bidName: String, meaning: String, bidder: String? = nil, parent: BidNode? = nil) {
         self.id = UUID()
         self.bidName = bidName
         self.meaning = meaning
+        self.bidder = bidder ?? ""
         self.parent = parent
         self.creationDate = Date()
     }
@@ -194,3 +196,4 @@ struct AddBidView: View {
         }
     }
 }
+

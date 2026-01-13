@@ -1,6 +1,27 @@
 import SwiftUI
 import SwiftData
 
+enum Seat: String, CaseIterable, Identifiable {
+    case south = "S", west = "W", north = "N", east = "E"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .south: return "Syd"
+        case .west: return "Väst"
+        case .north: return "Nord"
+        case .east: return "Öst"
+        }
+    }
+    func next() -> Seat {
+        switch self {
+        case .south: return .west
+        case .west: return .north
+        case .north: return .east
+        case .east: return .south
+        }
+    }
+}
+
 // Helper to map BridgeBid label to BidNode bidName
 private func bidName(from bridgeBid: BridgeBid) -> String {
     return bridgeBid.labelText // e.g. "1 ♣" or "1 NT"
@@ -17,16 +38,61 @@ struct BidSequenceBuilderView: View {
     @State private var sequenceNodes: [BidNode] = []
     @State private var currentHighestBridgeBid: BridgeBid? = nil
 
+    @State private var dealer: Seat = .south
+    @State private var currentSeat: Seat = .south
+
     // Meaning editor prompt
     @State private var showMeaningSheet = false
     @State private var meaningDraft: String = ""
+    @State private var shouldResetAfterSheet = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                BridgeBidGrid(currentHighestBid: currentHighestBridgeBid) { bid in
-                    handleSelect(bridgeBid: bid)
+                HStack {
+                    Text("Giv: \(dealer.displayName)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Text("På tur:")
+                            .font(.subheadline.weight(.semibold))
+                        Text(currentSeat.displayName)
+                            .font(.headline)
+                    }
                 }
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+
+                BridgeBidGrid(
+                    currentHighestBid: currentHighestBridgeBid,
+                    onSelect: { bid in
+                        handleSelect(bridgeBid: bid)
+                    },
+                    shouldMark: { bid in
+                        let name = bidName(from: bid)
+                        let parent = sequenceNodes.last
+                        if let existing = findChild(named: name, under: parent) {
+                            return existing.meaning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        } else {
+                            // If node doesn't exist yet, we consider it undefined => mark it
+                            return true
+                        }
+                    }
+                )
+                HStack {
+                    Spacer()
+                    Button {
+                        handlePass()
+                    } label: {
+                        Label("PASS", systemImage: "hand.raised")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.gray)
+                    .padding(.trailing, 12)
+                }
+                .padding(.vertical, 6)
 
                 Divider()
 
@@ -97,6 +163,10 @@ struct BidSequenceBuilderView: View {
                 if let node = sequenceNodes.last {
                     node.meaning = meaningDraft
                 }
+                if shouldResetAfterSheet {
+                    clearSequence()
+                    shouldResetAfterSheet = false
+                }
             }
         }
     }
@@ -104,6 +174,7 @@ struct BidSequenceBuilderView: View {
     private func clearSequence() {
         sequenceNodes.removeAll()
         currentHighestBridgeBid = nil
+        currentSeat = dealer
     }
 
     private func handleSelect(bridgeBid: BridgeBid) {
@@ -124,13 +195,52 @@ struct BidSequenceBuilderView: View {
             node = newNode
         }
 
+        node.bidder = currentSeat.rawValue
+
         sequenceNodes.append(node)
         currentHighestBridgeBid = bridgeBid
+
+        currentSeat = currentSeat.next()
 
         // If no meaning, prompt to add
         if node.meaning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             meaningDraft = ""
             showMeaningSheet = true
+        }
+    }
+
+    private func handlePass() {
+        // Create/find PASS as child of current parent
+        let parent = sequenceNodes.last
+        let name = "PASS"
+        let node: BidNode
+        if let existing = findChild(named: name, under: parent) {
+            node = existing
+        } else {
+            let newNode = BidNode(bidName: name, meaning: "", parent: parent)
+            if let parent = parent {
+                parent.responses.append(newNode)
+            } else {
+                modelContext.insert(newNode)
+            }
+            node = newNode
+        }
+
+        node.bidder = currentSeat.rawValue
+
+        sequenceNodes.append(node)
+        currentSeat = currentSeat.next()
+
+        // Lock grid by clearing currentHighestBridgeBid to avoid further rank-based choices
+        currentHighestBridgeBid = nil
+
+        let needsMeaning = node.meaning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if needsMeaning {
+            meaningDraft = ""
+            shouldResetAfterSheet = true
+            showMeaningSheet = true
+        } else {
+            clearSequence()
         }
     }
 

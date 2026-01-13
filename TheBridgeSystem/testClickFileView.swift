@@ -78,37 +78,48 @@ struct BridgeBid: Identifiable, Hashable {
 struct BidTile: View {
     let bid: BridgeBid
     let isEnabled: Bool
+    let markUndefined: Bool
 
     var body: some View {
-        VStack(spacing: 6) {
-            if let symbol = bid.strain.symbolName {
-                Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(bid.strain.foregroundColor)
-                    .accessibilityHidden(true)
-            } else {
-                Text("NT")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(bid.strain.foregroundColor)
-            }
+        ZStack {
+            VStack(spacing: 6) {
+                if let symbol = bid.strain.symbolName {
+                    Image(systemName: symbol)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(bid.strain.foregroundColor)
+                        .accessibilityHidden(true)
+                } else {
+                    Text("NT")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(bid.strain.foregroundColor)
+                }
 
-            Text(bid.labelText)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+                Text(bid.labelText)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isEnabled ? Color(.separator) : Color.gray.opacity(0.4), lineWidth: 1)
+            )
+            .opacity(isEnabled ? 1.0 : 0.45)
+            .accessibilityLabel(bid.labelText + (isEnabled ? "" : " (låst)"))
+
+            if markUndefined {
+                Text("'")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 64)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isEnabled ? Color(.separator) : Color.gray.opacity(0.4), lineWidth: 1)
-        )
-        .opacity(isEnabled ? 1.0 : 0.45)
-        .accessibilityLabel(bid.labelText + (isEnabled ? "" : " (låst)"))
     }
 }
 
@@ -122,14 +133,18 @@ struct BridgeBidGrid: View {
     /// Senaste (högsta) bud som låser lägre bud. Om nil är allt tillåtet.
     var currentHighestBid: BridgeBid?
 
+    var shouldMark: ((BridgeBid) -> Bool)? = nil
+
     init(
         columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5),
         currentHighestBid: BridgeBid? = nil,
-        onSelect: ((BridgeBid) -> Void)? = nil
+        onSelect: ((BridgeBid) -> Void)? = nil,
+        shouldMark: ((BridgeBid) -> Bool)? = nil
     ) {
         self.columns = columns
         self.onSelect = onSelect
         self.currentHighestBid = currentHighestBid
+        self.shouldMark = shouldMark
         self.bids = BridgeBidGrid.makeAllBids()
     }
 
@@ -159,12 +174,12 @@ struct BridgeBidGrid: View {
                             Button {
                                 onSelect(bid)
                             } label: {
-                                BidTile(bid: bid, isEnabled: enabled)
+                                BidTile(bid: bid, isEnabled: enabled, markUndefined: (shouldMark?(bid) ?? false))
                             }
                             .buttonStyle(.plain)
                             .disabled(!enabled)
                         } else {
-                            BidTile(bid: bid, isEnabled: enabled)
+                            BidTile(bid: bid, isEnabled: enabled, markUndefined: (shouldMark?(bid) ?? false))
                         }
                     }
                     .contextMenu {
