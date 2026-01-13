@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 
-@main
+@main  //   HÄR FINNS MAIN DÄR PRROGRAMMET BÖRJAR!!! -----------------------------------
 struct TheBridgeSystemApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -23,10 +23,15 @@ struct TheBridgeSystemApp: App {
         }
     }()
 
+    
+    // HÄR ANROPAS FÖRSTA VIEW
     var body: some Scene {
         WindowGroup {
-            tstContentView()  // Jag har bytt till att starta en annan vieew !!!
+            BidSequenceBuilderView()
+            // ContentView()  // originalview
+            // Jag har bytt till att starta en annan vieew !!!
         }
         .modelContainer(sharedModelContainer)
     }
 }
+
