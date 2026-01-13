@@ -20,6 +20,14 @@ enum Seat: String, CaseIterable, Identifiable {
         case .east: return .south
         }
     }
+    func prev() -> Seat {
+        switch self {
+        case .south: return .east
+        case .west:  return .south
+        case .north: return .west
+        case .east:  return .north
+        }
+    }
 }
 
 // Helper to map BridgeBid label to BidNode bidName
@@ -45,6 +53,10 @@ struct BidSequenceBuilderView: View {
     @State private var showMeaningSheet = false
     @State private var meaningDraft: String = ""
     @State private var shouldResetAfterSheet = false
+    
+    @State private var showDefinitionSheet = false
+
+    @State private var consecutivePasses: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -118,6 +130,11 @@ struct BidSequenceBuilderView: View {
                                     } label: {
                                         Label(current.meaning.isEmpty ? "Lägg till" : "Redigera", systemImage: "square.and.pencil")
                                     }
+                                    Button {
+                                        showDefinitionSheet = true
+                                    } label: {
+                                        Label("Definition", systemImage: "slider.horizontal.3")
+                                    }
                                 }
                                 if current.meaning.isEmpty {
                                     Text("Ingen beskrivning ännu").foregroundStyle(.secondary)
@@ -138,12 +155,29 @@ struct BidSequenceBuilderView: View {
 
                             if !sequenceNodes.isEmpty {
                                 Button {
-                                    _ = sequenceNodes.popLast()
-                                    // Recompute highest bid for grid lock
-                                    if let last = sequenceNodes.last, let parsed = parseBridgeBid(from: last.bidName) {
-                                        currentHighestBridgeBid = parsed
+                                    if let removed = sequenceNodes.popLast() {
+                                        // Step turn back
+                                        currentSeat = currentSeat.prev()
+
+                                        // Adjust consecutive passes
+                                        if removed.bidName == "PASS" {
+                                            consecutivePasses = max(0, consecutivePasses - 1)
+                                        } else {
+                                            consecutivePasses = 0
+                                        }
+
+                                        // Recompute highest bid lock from the last non-PASS
+                                        if let lastNonPass = sequenceNodes.reversed().first(where: { $0.bidName != "PASS" }),
+                                           let parsed = parseBridgeBid(from: lastNonPass.bidName) {
+                                            currentHighestBridgeBid = parsed
+                                        } else {
+                                            currentHighestBridgeBid = nil
+                                        }
                                     } else {
+                                        // Nothing to undo; ensure state is clean
+                                        currentSeat = .south
                                         currentHighestBridgeBid = nil
+                                        consecutivePasses = 0
                                     }
                                 } label: {
                                     Label("Ångra", systemImage: "arrow.uturn.backward")
@@ -165,8 +199,14 @@ struct BidSequenceBuilderView: View {
                 }
                 if shouldResetAfterSheet {
                     clearSequence()
+                    consecutivePasses = 0
                     shouldResetAfterSheet = false
                 }
+            }
+        }
+        .sheet(isPresented: $showDefinitionSheet) {
+            if let node = sequenceNodes.last {
+                DefinitionEditorSheet(node: node)
             }
         }
     }
@@ -175,6 +215,7 @@ struct BidSequenceBuilderView: View {
         sequenceNodes.removeAll()
         currentHighestBridgeBid = nil
         currentSeat = dealer
+        consecutivePasses = 0
     }
 
     private func handleSelect(bridgeBid: BridgeBid) {
@@ -196,6 +237,8 @@ struct BidSequenceBuilderView: View {
         }
 
         node.bidder = currentSeat.rawValue
+
+        consecutivePasses = 0
 
         sequenceNodes.append(node)
         currentHighestBridgeBid = bridgeBid
@@ -231,15 +274,18 @@ struct BidSequenceBuilderView: View {
         sequenceNodes.append(node)
         currentSeat = currentSeat.next()
 
+        consecutivePasses += 1
+
         // Lock grid by clearing currentHighestBridgeBid to avoid further rank-based choices
         currentHighestBridgeBid = nil
 
+        let shouldEnd = (consecutivePasses >= 3)
         let needsMeaning = node.meaning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if needsMeaning {
             meaningDraft = ""
-            shouldResetAfterSheet = true
+            shouldResetAfterSheet = shouldEnd
             showMeaningSheet = true
-        } else {
+        } else if shouldEnd {
             clearSequence()
         }
     }
@@ -298,6 +344,74 @@ private struct MeaningEditorSheet: View {
                         dismiss()
                     }
                 }
+            }
+        }
+    }
+}
+
+private struct DefinitionEditorSheet: View {
+    @Bindable var node: BidNode
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var minHP: Int = 0
+    @State private var maxHP: Int = 0
+    @State private var minClubs: Int = 0
+    @State private var minDiamonds: Int = 0
+    @State private var minHearts: Int = 0
+    @State private var minSpades: Int = 0
+    @State private var isBalanced: Bool = false
+    @State private var tagsText: String = ""
+
+    init(node: BidNode) {
+        self._node = Bindable(wrappedValue: node)
+        // Preload defaults from node in onAppear instead
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("HP") {
+                    Stepper(value: $minHP, in: 0...37) { Text("Min HP: \(minHP)") }
+                    Stepper(value: $maxHP, in: 0...37) { Text("Max HP: \(maxHP)") }
+                }
+                Section("Minsta längd i färg") {
+                    Stepper(value: $minClubs, in: 0...7) { Text("Klöver: \(minClubs)") }
+                    Stepper(value: $minDiamonds, in: 0...7) { Text("Ruter: \(minDiamonds)") }
+                    Stepper(value: $minHearts, in: 0...7) { Text("Hjärter: \(minHearts)") }
+                    Stepper(value: $minSpades, in: 0...7) { Text("Spader: \(minSpades)") }
+                }
+                Section("Balans & Taggar") {
+                    Toggle("Balanserad", isOn: $isBalanced)
+                    TextField("Taggar (kommaseparerade)", text: $tagsText)
+                        .textInputAutocapitalization(.never)
+                }
+            }
+            .navigationTitle("Definition: \(node.bidName)")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Spara") {
+                        node.minHP = minHP
+                        node.maxHP = maxHP
+                        node.minClubs = minClubs
+                        node.minDiamonds = minDiamonds
+                        node.minHearts = minHearts
+                        node.minSpades = minSpades
+                        node.isBalanced = isBalanced
+                        node.tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                minHP = node.minHP ?? 0
+                maxHP = node.maxHP ?? 0
+                minClubs = node.minClubs ?? 0
+                minDiamonds = node.minDiamonds ?? 0
+                minHearts = node.minHearts ?? 0
+                minSpades = node.minSpades ?? 0
+                isBalanced = node.isBalanced ?? false
+                tagsText = node.tags.joined(separator: ", ")
             }
         }
     }

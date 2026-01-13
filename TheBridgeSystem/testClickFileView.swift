@@ -81,44 +81,47 @@ struct BidTile: View {
     let markUndefined: Bool
 
     var body: some View {
+        let backgroundColor: Color = {
+            return markUndefined ? Color.red.opacity(0.22) : Color.green.opacity(0.22)
+        }()
+        let strokeColor: Color = {
+            if isEnabled {
+                return markUndefined ? Color.red.opacity(0.5) : Color.green.opacity(0.5)
+            } else {
+                return Color.gray.opacity(0.4)
+            }
+        }()
+
         ZStack {
             VStack(spacing: 6) {
                 if let symbol = bid.strain.symbolName {
                     Image(systemName: symbol)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(bid.strain.foregroundColor)
                         .accessibilityHidden(true)
                 } else {
                     Text("NT")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(bid.strain.foregroundColor)
                 }
 
                 Text(bid.labelText)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
+                    .fill(backgroundColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isEnabled ? Color(.separator) : Color.gray.opacity(0.4), lineWidth: 1)
+                    .stroke(strokeColor, lineWidth: 1)
             )
-            .opacity(isEnabled ? 1.0 : 0.45)
+            .opacity((isEnabled ? 1.0 : 0.45) * (markUndefined ? 0.9 : 1.0))
             .accessibilityLabel(bid.labelText + (isEnabled ? "" : " (låst)"))
-
-            if markUndefined {
-                Text("'")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(4)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            }
         }
     }
 }
@@ -136,7 +139,7 @@ struct BridgeBidGrid: View {
     var shouldMark: ((BridgeBid) -> Bool)? = nil
 
     init(
-        columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5),
+        columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 6), count: 5),
         currentHighestBid: BridgeBid? = nil,
         onSelect: ((BridgeBid) -> Void)? = nil,
         shouldMark: ((BridgeBid) -> Bool)? = nil
@@ -165,7 +168,7 @@ struct BridgeBidGrid: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(bids) { bid in
                     let enabled = isEnabled(bid)
 
@@ -195,7 +198,7 @@ struct BridgeBidGrid: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(8)
         }
         .navigationTitle("Bridgebud")
         .background(Color(.systemBackground))

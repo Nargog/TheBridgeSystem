@@ -17,6 +17,16 @@ class BidNode {
     var bidName: String       // T.ex. "1 Klöver"
     var meaning: String       // T.ex. "12+ HP, 3+ klöver..."
     var bidder: String        // "S", "W", "N", "E" indicating who made the bid
+
+    var minHP: Int?
+    var maxHP: Int?
+    var minClubs: Int?
+    var minDiamonds: Int?
+    var minHearts: Int?
+    var minSpades: Int?
+    var isBalanced: Bool?
+    var tags: [String] = []
+
     var creationDate: Date
     
     // Relationer: Ett bud kan ha många svarsbud (Children)
@@ -28,12 +38,33 @@ class BidNode {
     @Relationship(inverse: \BidNode.responses)
     var parent: BidNode?
     
-    init(bidName: String, meaning: String, bidder: String? = nil, parent: BidNode? = nil) {
+    init(
+        bidName: String,
+        meaning: String,
+        bidder: String? = nil,
+        parent: BidNode? = nil,
+        minHP: Int? = nil,
+        maxHP: Int? = nil,
+        minClubs: Int? = nil,
+        minDiamonds: Int? = nil,
+        minHearts: Int? = nil,
+        minSpades: Int? = nil,
+        isBalanced: Bool? = nil,
+        tags: [String] = []
+    ) {
         self.id = UUID()
         self.bidName = bidName
         self.meaning = meaning
         self.bidder = bidder ?? ""
         self.parent = parent
+        self.minHP = minHP
+        self.maxHP = maxHP
+        self.minClubs = minClubs
+        self.minDiamonds = minDiamonds
+        self.minHearts = minHearts
+        self.minSpades = minSpades
+        self.isBalanced = isBalanced
+        self.tags = tags
         self.creationDate = Date()
     }
 }
